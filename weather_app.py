@@ -2,54 +2,50 @@ import streamlit as st
 import requests
 import datetime
 import random
+import base64
+from PIL import Image
+import io
 
-# --- ページ設定 (タイトルと全幅レイアウト) ---
-st.set_page_config(page_title="Pixel Weather", layout="wide")
+# --- ページ設定 ---
+st.set_page_config(page_title="Pixel Weather", layout="centered")
 
-# iPhoneの画面いっぱいに表示するための究極のCSS調整
+# 画像をWebで表示できる形式に変換する関数
+def get_image_base64(path):
+    try:
+        img = Image.open(path)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode()
+    except: return ""
+
+# 全画面表示のためのCSS
 st.markdown("""
     <style>
-    /* 全体の余白をゼロにする */
-    .block-container { padding: 0 !important; }
+    .block-container { padding: 0 !important; max-width: 100% !important; }
     header { visibility: hidden; display: none; }
     footer { visibility: hidden; }
     [data-testid="stHeader"] { display: none; }
     
-    /* 入力欄のスタイル */
-    .stTextInput { position: absolute; top: 10px; left: 10px; z-index: 100; width: 120px !important; opacity: 0.8; }
-    
-    /* 天気カードのメインコンテナ (画面高さ100%を目指す) */
-    .weather-full-card {
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        overflow: hidden; display: flex; flex-direction: column;
+    .main-container {
+        position: relative; width: 100vw; height: 100vh;
+        background-color: white; overflow: hidden;
     }
-    
-    /* 画像エリア (画面の80%を占有) */
-    .image-area {
+    .image-box {
         position: relative; width: 100%; height: 75vh;
-        background-position: center; background-size: cover;
+        overflow: hidden;
     }
-    
-    .pixel-bg {
+    .pixel-img {
         width: 100%; height: 100%; object-fit: cover;
     }
-
-    /* 気温のオーバーレイ */
-    .temp-overlay {
+    .temp-txt {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        color: white; font-size: 80px; font-weight: bold;
-        text-shadow: 4px 4px 15px rgba(0,0,0,0.6); z-index: 50;
+        color: white; font-size: 70px; font-weight: bold;
+        text-shadow: 3px 3px 10px rgba(0,0,0,0.7); z-index: 10;
     }
-
-    /* 情報エリア (下の白い部分) */
-    .info-area {
-        height: 25vh; background: white; padding: 20px;
-        display: flex; flex-direction: column; justify-content: center;
+    .info-box {
+        height: 25vh; padding: 20px; background: white;
     }
-
-    /* エフェクト */
-    .snow { position: absolute; top: -10px; width: 8px; height: 8px; background: white; border-radius: 50%; animation: fall linear infinite; }
-    .rain { position: absolute; top: -20px; width: 2px; height: 20px; background: #ADD8E6; animation: fall linear infinite; }
+    .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; }
     @keyframes fall { to { transform: translateY(80vh); } }
     </style>
     """, unsafe_allow_html=True)
@@ -63,56 +59,46 @@ def get_weather(city):
         return res.json() if res.status_code == 200 else None
     except: return None
 
-# 入力欄
-city = st.text_input("", value="Tokyo", label_visibility="collapsed")
+# 検索入力
+city = st.text_input("都市名を入力してね", value="Tokyo")
 data = get_weather(city)
 
 if data:
     weather_main = data['weather'][0]['main']
     temp = round(data['main']['temp'], 1)
-    rain = data.get('rain', {}).get('1h', 0)
-    snow = data.get('snow', {}).get('1h', 0)
     
-    now_hour = datetime.datetime.now().hour
-    is_night = now_hour >= 18 or now_hour < 6
-    
+    # テーマ判定
     themes = {
-        "Clear":  {"day": "#FFD700", "night": "#191970", "img": "sunny.png", "txt": "快晴"},
-        "Rain":   {"day": "#4682B4", "night": "#2F4F4F", "img": "rainy.png", "txt": "雨"},
-        "Snow":   {"day": "#E0FFFF", "night": "#4B0082", "img": "snowy.png", "txt": "雪"},
-        "Clouds": {"day": "#A9A9A9", "night": "#696969", "img": "cloudy.png", "txt": "曇り"}
+        "Clear":  {"bg": "#FFD700", "img": "sunny.png", "txt": "快晴"},
+        "Rain":   {"bg": "#4682B4", "img": "rainy.png", "txt": "雨"},
+        "Snow":   {"bg": "#E0FFFF", "img": "snowy.png", "txt": "雪"},
+        "Clouds": {"bg": "#A9A9A9", "img": "cloudy.png", "txt": "曇り"}
     }
     selected = themes.get(weather_main, themes["Clouds"])
-    bg_color = selected["night"] if is_night else selected["day"]
+    
+    # 画像をエンコード
+    img_b64 = get_image_base64(selected["img"])
 
-    # エフェクト生成
+    # 雪エフェクト (Snowの時だけ)
     effect_html = ""
     if weather_main == "Snow":
-        for _ in range(30):
+        for _ in range(20):
             left, dur = random.randint(0, 100), random.uniform(4, 8)
             effect_html += f'<div class="snow" style="left:{left}%; animation-duration:{dur}s;"></div>'
-    elif weather_main == "Rain":
-        for _ in range(50):
-            left, dur = random.randint(0, 100), random.uniform(0.7, 1.2)
-            effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s;"></div>'
 
-    img_url = f"https://raw.githubusercontent.com/hal2574/my-pixel-weather/main/{selected['img']}"
-
-    # 画面全体の構成
+    # 画面描画
     st.markdown(f"""
-        <div class="weather-full-card">
-            <div class="image-area" style="background-color: {bg_color};">
-                <img src="{img_url}" class="pixel-bg">
+        <div class="main-container">
+            <div class="image-box" style="background-color: {selected['bg']};">
+                <img src="data:image/png;base64,{img_b64}" class="pixel-img">
                 {effect_html}
-                <div class="temp-overlay">{temp}℃</div>
+                <div class="temp-txt">{temp}℃</div>
             </div>
-            <div class="info-area">
-                <h1 style="margin:0; font-size: 28px;">{selected['txt']}</h1>
-                <p style="margin:0; color: gray; font-size: 18px;">
-                    {city} / 降水量: {max(rain, snow)} mm/h
-                </p>
+            <div class="info-box">
+                <h1 style="margin:0;">天気: {selected['txt']}</h1>
+                <p style="color:gray;">{city} の現在の気温</p>
             </div>
         </div>
     """, unsafe_allow_html=True)
 else:
-    st.error("City not found")
+    st.error("都市名を確認してね！")
