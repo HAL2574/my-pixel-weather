@@ -5,7 +5,7 @@ import base64
 from PIL import Image
 import io
 
-# --- 1. ページ設定 (スマホで見やすく) ---
+# --- 1. ページ設定 (スマホの横幅制限を解除) ---
 st.set_page_config(page_title="Pixel Weather", layout="centered")
 
 # 画像変換関数
@@ -17,7 +17,7 @@ def get_image_base64(path):
         return base64.b64encode(buf.getvalue()).decode()
     except: return ""
 
-# --- 2. 都市選択 (操作しやすく上部に配置) ---
+# --- 2. 都市選択 ---
 city_map = {
     "札幌": "Sapporo", 
     "旭川": "Asahikawa",
@@ -42,23 +42,31 @@ try:
 except:
     pass
 
-# --- 4. CSS設定 (大画面重視) ---
+# --- 4. CSS設定 (余白ゼロ・トリミング重視) ---
 st.markdown("""
     <style>
-    /* 左右の余白を削って画面幅を広く使う */
-    .block-container { padding: 1rem 0 !important; max-width: 100% !important; }
+    /* 画面左右・上下の余白を完全にゼロにする */
+    .main .block-container { padding: 0 !important; max-width: 100% !important; }
     header { visibility: hidden; display: none; }
     [data-testid="stHeader"] { display: none; }
     
-    /* 画像エリア：画面の高さの70%を使う(大迫力) */
+    /* 画像コンテナ：隙間なく画面幅いっぱいに */
     .image-container {
         position: relative;
         width: 100vw;
-        height: 70vh; 
+        height: 75vh; /* 画面の75%を画像にする */
+        margin: 0;
+        padding: 0;
         overflow: hidden;
-        background-color: #eee;
     }
-    .pixel-img { width: 100%; height: 100%; object-fit: cover; }
+    
+    /* 画像のトリミング設定：枠を出さずに中央を拡大して埋める */
+    .pixel-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover; /* これが重要！枠を作らず隙間を埋めます */
+        display: block;
+    }
     
     /* 気温の文字 */
     .temp-overlay {
@@ -67,14 +75,14 @@ st.markdown("""
         text-shadow: 3px 3px 15px rgba(0,0,0,0.8); z-index: 10;
     }
     
-    /* アニメーション：画面の高さに合わせて落ちる距離を調整 */
+    /* 雪・雨のアニメーション */
     .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 5; }
     .rain { position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 5; }
-    @keyframes fall { to { transform: translateY(70vh); } }
+    @keyframes fall { to { transform: translateY(75vh); } }
     
     /* 下の情報エリア */
     .info-area {
-        padding: 20px 25px;
+        padding: 25px;
         background: white;
     }
     </style>
@@ -94,7 +102,7 @@ if data:
     selected = themes.get(weather_main, themes["Clouds"])
     img_b64 = get_image_base64(selected["img"])
 
-    # 雪・雨の演出
+    # 演出HTML
     effect_html = ""
     if weather_main == "Snow":
         for _ in range(25):
@@ -114,15 +122,12 @@ if data:
         </div>
     """, unsafe_allow_html=True)
 
-    # 文字情報は画像の下に配置 (スクロールで見える)
+    # 文字情報
     st.markdown(f"""
         <div class="info-area">
-            <h2 style="margin:0; font-size: 30px;">{selected_city_jp}は「{selected['txt']}」</h2>
-            <p style="font-size: 20px; color: gray; margin-top: 10px;">
-                現在の気温：{temp}℃
-            </p>
+            <h2 style="margin:0; font-size: 28px;">{selected_city_jp}の天気：{selected['txt']}</h2>
+            <p style="font-size: 18px; color: gray; margin-top: 10px;">現在の気温は {temp}℃ です</p>
         </div>
     """, unsafe_allow_html=True)
-
 else:
-    st.error("お天気データの取得に失敗しました。")
+    st.error("データの取得に失敗しました。")
