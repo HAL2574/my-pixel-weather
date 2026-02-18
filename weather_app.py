@@ -5,10 +5,9 @@ import base64
 from PIL import Image
 import io
 
-# --- 1. ページ設定 (スマホの横幅制限を解除) ---
+# --- 1. ページ設定 ---
 st.set_page_config(page_title="Pixel Weather", layout="centered")
 
-# 画像変換関数
 def get_image_base64(path):
     try:
         img = Image.open(path)
@@ -19,15 +18,9 @@ def get_image_base64(path):
 
 # --- 2. 都市選択 ---
 city_map = {
-    "札幌": "Sapporo", 
-    "旭川": "Asahikawa",
-    "帯広": "Obihiro",
-    "小樽": "Otaru", 
-    "東京": "Tokyo", 
-    "ロンドン": "London", 
-    "ハワイ": "Honolulu"
+    "札幌": "Sapporo", "旭川": "Asahikawa", "帯広": "Obihiro",
+    "小樽": "Otaru", "東京": "Tokyo", "ロンドン": "London", "ハワイ": "Honolulu"
 }
-
 selected_city_jp = st.selectbox("都市を選択してください", options=list(city_map.keys()), index=0)
 city_en = city_map[selected_city_jp]
 
@@ -37,54 +30,48 @@ url = f"http://api.openweathermap.org/data/2.5/weather?q={city_en}&appid={API_KE
 data = None
 try:
     res = requests.get(url, timeout=5)
-    if res.status_code == 200:
-        data = res.json()
-except:
-    pass
+    if res.status_code == 200: data = res.json()
+except: pass
 
-# --- 4. CSS設定 (余白ゼロ・トリミング重視) ---
+# --- 4. CSS設定 (ここを大幅強化) ---
 st.markdown("""
     <style>
-    /* 画面左右・上下の余白を完全にゼロにする */
+    /* 画面全体の余白を強制排除 */
     .main .block-container { padding: 0 !important; max-width: 100% !important; }
     header { visibility: hidden; display: none; }
     [data-testid="stHeader"] { display: none; }
     
-    /* 画像コンテナ：隙間なく画面幅いっぱいに */
+    /* 画像を入れる箱：背景色を画像と同じにして目立たなくする */
     .image-container {
         position: relative;
         width: 100vw;
-        height: 75vh; /* 画面の75%を画像にする */
+        height: 100vw; /* 正方形に固定して枠をなくす */
         margin: 0;
         padding: 0;
         overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     
-    /* 画像のトリミング設定：枠を出さずに中央を拡大して埋める */
+    /* 画像：コンテナを完全に覆い尽くす */
     .pixel-img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover; /* これが重要！枠を作らず隙間を埋めます */
-        display: block;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important; /* 隙間を作らずトリミングして埋める */
     }
     
-    /* 気温の文字 */
     .temp-overlay {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
         color: white; font-size: 80px; font-weight: bold;
         text-shadow: 3px 3px 15px rgba(0,0,0,0.8); z-index: 10;
     }
     
-    /* 雪・雨のアニメーション */
     .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 5; }
     .rain { position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 5; }
-    @keyframes fall { to { transform: translateY(75vh); } }
+    @keyframes fall { to { transform: translateY(100vw); } }
     
-    /* 下の情報エリア */
-    .info-area {
-        padding: 25px;
-        background: white;
-    }
+    .info-area { padding: 25px; background: white; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -94,7 +81,7 @@ if data:
     temp = round(data['main']['temp'], 1)
     
     themes = {
-        "Clear":  {"bg": "#FFD700", "img": "sunny.png", "txt": "快晴"},
+        "Clear":  {"bg": "#87CEEB", "img": "sunny.png", "txt": "快晴"},
         "Rain":   {"bg": "#4682B4", "img": "rainy.png", "txt": "雨"},
         "Snow":   {"bg": "#E0FFFF", "img": "snowy.png", "txt": "雪"},
         "Clouds": {"bg": "#A9A9A9", "img": "cloudy.png", "txt": "曇り"}
@@ -102,7 +89,6 @@ if data:
     selected = themes.get(weather_main, themes["Clouds"])
     img_b64 = get_image_base64(selected["img"])
 
-    # 演出HTML
     effect_html = ""
     if weather_main == "Snow":
         for _ in range(25):
@@ -113,19 +99,15 @@ if data:
             left, dur = random.randint(0, 100), random.uniform(0.7, 1.3)
             effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s;"></div>'
 
-    # 画像と気温を表示
+    # 描画
     st.markdown(f"""
         <div class="image-container" style="background-color: {selected['bg']};">
             <img src="data:image/png;base64,{img_b64}" class="pixel-img">
             {effect_html}
             <div class="temp-overlay">{temp}℃</div>
         </div>
-    """, unsafe_allow_html=True)
-
-    # 文字情報
-    st.markdown(f"""
         <div class="info-area">
-            <h2 style="margin:0; font-size: 28px;">{selected_city_jp}の天気：{selected['txt']}</h2>
+            <h2 style="margin:0; font-size: 28px;">{selected_city_jp}：{selected['txt']}</h2>
             <p style="font-size: 18px; color: gray; margin-top: 10px;">現在の気温は {temp}℃ です</p>
         </div>
     """, unsafe_allow_html=True)
