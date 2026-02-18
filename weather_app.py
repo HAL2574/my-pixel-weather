@@ -42,11 +42,12 @@ if data:
     weather_main = data['weather'][0]['main']
     temp = round(data['main']['temp'], 1)
     
+    # ★ここを修正：ClearとCloudsの両方で sunny.gif を使うようにしました
     themes = {
         "Clear":  {"bg": "#87CEEB", "file": "sunny.gif", "txt": "快晴"},
+        "Clouds": {"bg": "#A9A9A9", "file": "sunny.gif", "txt": "曇り"},
         "Rain":   {"bg": "#4682B4", "file": "rainy.png", "txt": "雨"},
-        "Snow":   {"bg": "#E0FFFF", "file": "snowy.png", "txt": "雪"},
-        "Clouds": {"bg": "#A9A9A9", "file": "cloudy.png", "txt": "曇り"}
+        "Snow":   {"bg": "#E0FFFF", "file": "snowy.png", "txt": "雪"}
     }
     selected = themes.get(weather_main, themes["Clouds"])
     file_b64 = get_file_base64(selected["file"])
@@ -61,7 +62,7 @@ if data:
             left, dur = random.randint(0, 100), random.uniform(0.7, 1.3)
             effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s;"></div>'
 
-    # --- HTML & CSS (波括弧を {{ }} に修正済み) ---
+    # --- HTML & CSS ---
     st.markdown(f"""
         <style>
         .main .block-container {{ padding: 0 !important; max-width: 100% !important; }}
