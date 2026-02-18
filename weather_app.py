@@ -10,12 +10,10 @@ st.set_page_config(page_title="Pixel Weather", layout="centered")
 
 def get_image_base64(path):
     try:
-        # GIFアニメーションをバイナリとして読み込む
         with open(path, "rb") as f:
             data = f.read()
         return base64.b64encode(data).decode()
-    except:
-        return ""
+    except: return ""
 
 # --- 2. 都市選択 ---
 city_map = {
@@ -40,7 +38,6 @@ if data:
     weather_main = data['weather'][0]['main']
     temp = round(data['main']['temp'], 1)
     
-    # 天気ごとの設定 (gifファイルを読み込むように変更)
     themes = {
         "Clear":  {"bg": "#87CEEB", "img": "sunny.gif", "txt": "快晴"},
         "Rain":   {"bg": "#4682B4", "img": "rainy.gif", "txt": "雨"},
@@ -50,18 +47,17 @@ if data:
     selected = themes.get(weather_main, themes["Clouds"])
     img_b64 = get_image_base64(selected["img"])
 
-    # --- 5. HTML/CSS (情報をすべてドット絵に重ねる) ---
+    # --- 5. CSS & HTML (情報を下に集約) ---
     st.markdown(f"""
         <style>
         .main .block-container {{ padding: 0 !important; max-width: 100% !important; }}
         header {{ visibility: hidden; display: none; }}
         [data-testid="stHeader"] {{ display: none; }}
         
-        /* 全画面カード */
         .weather-screen {{
             position: relative;
             width: 100vw;
-            height: 90vh; /* 画面のほぼすべてをドット絵に */
+            height: 85vh; /* iPhoneの画面に合わせて微調整 */
             overflow: hidden;
             background-color: {selected['bg']};
         }}
@@ -72,32 +68,39 @@ if data:
             object-fit: cover;
         }}
 
-        /* 全情報をドット絵の上に浮かせる */
-        .overlay-content {{
+        /* 情報を画面下部にまとめるエリア */
+        .info-overlay {{
             position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 30px 20px 40px 20px; /* 下側に余裕を持たせる */
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.7)); /* 下にいくほど暗くなるグラデーション */
             color: white;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
             z-index: 100;
-            background: rgba(0, 0, 0, 0.1); /* 少しだけ暗くして文字を見やすく */
         }}
 
-        .city-label {{ font-size: 24px; margin-bottom: 5px; text-shadow: 2px 2px 8px rgba(0,0,0,0.8); }}
-        .temp-label {{ font-size: 90px; font-weight: bold; text-shadow: 3px 3px 15px rgba(0,0,0,0.8); }}
-        .desc-label {{ font-size: 28px; margin-top: 10px; background: rgba(255,255,255,0.2); padding: 5px 20px; border-radius: 50px; }}
+        .city-box {{ text-align: left; }}
+        .city-name {{ font-size: 20px; opacity: 0.9; }}
+        .weather-desc {{ font-size: 32px; font-weight: bold; }}
+
+        .temp-box {{ text-align: right; }}
+        .temp-val {{ font-size: 64px; font-weight: bold; line-height: 1; }}
         </style>
 
         <div class="weather-screen">
             <img src="data:image/gif;base64,{img_b64}" class="bg-gif">
-            <div class="overlay-content">
-                <div class="city-label">{selected_city_jp}</div>
-                <div class="temp-label">{temp}℃</div>
-                <div class="desc-label">{selected['txt']}</div>
+            <div class="info-overlay">
+                <div class="city-box">
+                    <div class="city-name">{selected_city_jp}</div>
+                    <div class="weather-desc">{selected['txt']}</div>
+                </div>
+                <div class="temp-box">
+                    <div class="temp-val">{temp}℃</div>
+                </div>
             </div>
         </div>
     """, unsafe_allow_html=True)
