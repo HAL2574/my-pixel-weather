@@ -8,20 +8,21 @@ import io
 # --- 1. ページ設定 ---
 st.set_page_config(page_title="Pixel Weather", layout="centered")
 
-# ファイルをBase64に変換
-def get_file_base64(path):
+def get_image_base64(path):
     try:
-        with open(path, "rb") as f:
-            data = f.read()
-            return base64.b64encode(data).decode()
-    except:
-        return ""
+        img = Image.open(path)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode()
+    except: return ""
 
 # --- 2. 都市選択 ---
 city_map = {
     "札幌": "Sapporo", "旭川": "Asahikawa", "帯広": "Obihiro",
     "小樽": "Otaru", "東京": "Tokyo", "ロンドン": "London", "ハワイ": "Honolulu"
 }
+
+# セレクトボックス（操作のため、これだけは画面最上部に置きます）
 selected_city_jp = st.selectbox("都市を選択してください", options=list(city_map.keys()), index=0)
 
 # --- 3. データ取得 ---
@@ -32,26 +33,24 @@ url = f"http://api.openweathermap.org/data/2.5/weather?q={city_en}&appid={API_KE
 data = None
 try:
     res = requests.get(url, timeout=5)
-    if res.status_code == 200:
-        data = res.json()
-except:
-    pass
+    if res.status_code == 200: data = res.json()
+except: pass
 
 # --- 4. 描画処理 ---
 if data:
     weather_main = data['weather'][0]['main']
     temp = round(data['main']['temp'], 1)
     
-    # ★ここを修正：ClearとCloudsの両方で sunny.gif を使うようにしました
     themes = {
-        "Clear":  {"bg": "#87CEEB", "file": "sunny.gif", "txt": "快晴"},
-        "Clouds": {"bg": "#A9A9A9", "file": "sunny.gif", "txt": "曇り"},
-        "Rain":   {"bg": "#4682B4", "file": "rainy.png", "txt": "雨"},
-        "Snow":   {"bg": "#E0FFFF", "file": "snowy.png", "txt": "雪"}
+        "Clear":  {"bg": "#87CEEB", "img": "sunny.png", "txt": "快晴"},
+        "Rain":   {"bg": "#4682B4", "img": "rainy.png", "txt": "雨"},
+        "Snow":   {"bg": "#E0FFFF", "img": "snowy.png", "txt": "雪"},
+        "Clouds": {"bg": "#A9A9A9", "img": "cloudy.png", "txt": "曇り"}
     }
     selected = themes.get(weather_main, themes["Clouds"])
-    file_b64 = get_file_base64(selected["file"])
+    img_b64 = get_image_base64(selected["img"])
 
+    # 雪・雨の演出用HTML
     effect_html = ""
     if weather_main == "Snow":
         for _ in range(25):
@@ -62,54 +61,68 @@ if data:
             left, dur = random.randint(0, 100), random.uniform(0.7, 1.3)
             effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s;"></div>'
 
-    # --- HTML & CSS ---
+    # --- CSS & HTML 統合表示 ---
+    # 下部の文字情報を info-area から画像内の info-overlay に移動しました
     st.markdown(f"""
         <style>
         .main .block-container {{ padding: 0 !important; max-width: 100% !important; }}
         header {{ visibility: hidden; display: none; }}
         [data-testid="stHeader"] {{ display: none; }}
         
-        .weather-container {{
+        /* メインのカード：画面のほぼ全域を使う */
+        .weather-card {{
             position: relative;
             width: 100vw;
-            height: 70vh;
+            height: 85vh; /* 文字を中に入れるので、高さを少し広げました */
             margin: 0;
             padding: 0;
             overflow: hidden;
             background-color: {selected['bg']};
         }}
         
-        .pixel-bg {{
+        .pixel-img {{
             width: 100% !important;
             height: 100% !important;
             object-fit: cover !important;
-            image-rendering: pixelated;
         }}
         
+        /* 中央の気温 */
         .temp-overlay {{
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: white; font-size: 85px; font-weight: bold;
-            text-shadow: 4px 4px 20px rgba(0,0,0,0.8);
-            z-index: 100;
+            position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 90px; font-weight: bold;
+            text-shadow: 4px 4px 15px rgba(0,0,0,0.8); z-index: 100;
         }}
         
+        /* 下部の都市名・天気情報（ドット絵の中に配置） */
+        .info-overlay {{
+            position: absolute;
+            bottom: 40px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: white;
+            z-index: 100;
+            text-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+        }}
+        .city-name {{ font-size: 32px; font-weight: bold; margin: 0; }}
+        .weather-desc {{ font-size: 20px; opacity: 0.9; margin: 5px 0 0 0; }}
+        
+        /* アニメーション */
         .snow {{ position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 50; }}
         .rain {{ position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 50; }}
-        @keyframes fall {{ to {{ transform: translateY(70vh); }} }}
-        
-        .info-area {{ padding: 25px; background: white; }}
+        @keyframes fall {{ to {{ transform: translateY(85vh); }} }}
         </style>
 
-        <div class="weather-container">
-            <img src="data:image/{"gif" if selected['file'].endswith('gif') else "png"};base64,{file_b64}" class="pixel-bg">
+        <div class="weather-card">
+            <img src="data:image/png;base64,{img_b64}" class="pixel-img">
             {effect_html}
             <div class="temp-overlay">{temp}℃</div>
-        </div>
-        
-        <div class="info-area">
-            <h2 style="margin:0; font-size: 28px;">{selected_city_jp}：{selected['txt']}</h2>
-            <p style="font-size: 18px; color: gray; margin-top: 10px;">現在の気温：{temp}℃</p>
+            
+            <div class="info-overlay">
+                <p class="city-name">{selected_city_jp}</p>
+                <p class="weather-desc">{selected['txt']}</p>
+            </div>
         </div>
     """, unsafe_allow_html=True)
 else:
-    st.error("お天気データの取得に失敗しました。")
+    st.error("データの取得に失敗しました。")
