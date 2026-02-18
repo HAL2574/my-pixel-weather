@@ -1,14 +1,14 @@
 import streamlit as st
 import requests
-import datetime
 import random
 import base64
 from PIL import Image
 import io
 
-# --- ページ設定 ---
+# --- 1. ページ設定 ---
 st.set_page_config(page_title="Pixel Weather", layout="centered")
 
+# 画像変換関数
 def get_image_base64(path):
     try:
         img = Image.open(path)
@@ -17,48 +17,7 @@ def get_image_base64(path):
         return base64.b64encode(buf.getvalue()).decode()
     except: return ""
 
-# --- CSS (レイアウト崩れ防止・文字を最前面に) ---
-st.markdown("""
-    <style>
-    .block-container { padding: 0 !important; max-width: 100% !important; }
-    header { visibility: hidden; display: none; }
-    footer { visibility: hidden; }
-    [data-testid="stHeader"] { display: none; }
-    
-    .main-container { width: 100vw; height: 100vh; background-color: white; overflow: hidden; display: flex; flex-direction: column; }
-    .image-box { position: relative; width: 100%; height: 60vh; overflow: hidden; background-color: #eee; }
-    .pixel-img { width: 100%; height: 100%; object-fit: cover; }
-    
-    /* 気温の文字が絶対に消えないように設定 */
-    .temp-txt { 
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-        color: white; font-size: 75px; font-weight: bold; 
-        text-shadow: 2px 2px 12px rgba(0,0,0,0.7); z-index: 100; 
-    }
-    
-    .info-box { height: 40vh; padding: 20px; background: white; z-index: 10; }
-    
-    .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 50; }
-    .rain { position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 50; }
-    
-    .snow-pile { position: absolute; bottom: 0; left: 0; width: 100%; background: white; z-index: 40; animation: pile-up 60s ease-out forwards; filter: blur(1px); }
-    @keyframes fall { to { transform: translateY(60vh); } }
-    @keyframes pile-up { from { height: 0px; } to { height: 30px; } }
-    </style>
-    """, unsafe_allow_html=True)
-
-API_KEY = "1cd0ee42efdec18da432fea8bde0aed0"
-
-def get_weather(city_name):
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={city_name}&appid={API_KEY}&lang=ja&units=metric"
-    try:
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200:
-            return res.json()
-    except: pass
-    return None
-
-# --- 都市選択トグル (旭川と帯広を追加) ---
+# --- 2. 都市選択 (ここを最初に行う) ---
 city_map = {
     "札幌": "Sapporo", 
     "旭川": "Asahikawa",
@@ -69,14 +28,54 @@ city_map = {
     "ハワイ": "Honolulu"
 }
 
-# セレクトボックス
+# 選択肢を画面に表示
 selected_city_jp = st.selectbox("都市を選択してください", options=list(city_map.keys()), index=0)
 city_en = city_map[selected_city_jp]
 
-# データを取得
-data = get_weather(city_en)
+# --- 3. データ取得 ---
+API_KEY = "1cd0ee42efdec18da432fea8bde0aed0"
+url = f"http://api.openweathermap.org/data/2.5/weather?q={city_en}&appid={API_KEY}&lang=ja&units=metric"
+data = None
+try:
+    res = requests.get(url, timeout=5)
+    if res.status_code == 200:
+        data = res.json()
+except:
+    pass
 
-# --- 画面描画 ---
+# --- 4. CSS設定 (画像エリアの高さとアニメーション) ---
+st.markdown("""
+    <style>
+    /* ヘッダーなどを消す */
+    header { visibility: hidden; display: none; }
+    [data-testid="stHeader"] { display: none; }
+    
+    /* 画像エリアのスタイル */
+    .image-container {
+        position: relative;
+        width: 100%;
+        height: 350px; /* iPhoneで見やすい高さ */
+        overflow: hidden;
+        border-radius: 15px;
+        margin-bottom: 20px;
+    }
+    .pixel-img { width: 100%; height: 100%; object-fit: cover; }
+    
+    /* 気温の文字 */
+    .temp-overlay {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        color: white; font-size: 70px; font-weight: bold;
+        text-shadow: 2px 2px 10px rgba(0,0,0,0.8); z-index: 10;
+    }
+    
+    /* アニメーション */
+    .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 5; }
+    .rain { position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 5; }
+    @keyframes fall { to { transform: translateY(350px); } }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 5. メイン表示 ---
 if data:
     weather_main = data['weather'][0]['main']
     temp = round(data['main']['temp'], 1)
@@ -90,32 +89,29 @@ if data:
     selected = themes.get(weather_main, themes["Clouds"])
     img_b64 = get_image_base64(selected["img"])
 
-    # 演出HTML
+    # 雪・雨の演出
     effect_html = ""
     if weather_main == "Snow":
         for _ in range(20):
             left, dur = random.randint(0, 100), random.uniform(3, 7)
             effect_html += f'<div class="snow" style="left:{left}%; animation-duration:{dur}s;"></div>'
-        effect_html += '<div class="snow-pile"></div>'
     elif weather_main == "Rain":
         for _ in range(30):
             left, dur = random.randint(0, 100), random.uniform(0.7, 1.3)
             effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s;"></div>'
 
-    # メイン表示
+    # 画像と気温の表示
     st.markdown(f"""
-        <div class="main-container">
-            <div class="image-box" style="background-color: {selected['bg']};">
-                <img src="data:image/png;base64,{img_b64}" class="pixel-img">
-                {effect_html}
-                <div class="temp-txt">{temp}℃</div>
-            </div>
-            <div class="info-box">
-                <h2 style="margin:0; color:#333;">{selected_city_jp}の天気</h2>
-                <p style="font-size: 24px; font-weight: bold; margin: 10px 0;">{selected['txt']}</p>
-                <p style="color:gray;">現在の気温：{temp}℃</p>
-            </div>
+        <div class="image-container" style="background-color: {selected['bg']};">
+            <img src="data:image/png;base64,{img_b64}" class="pixel-img">
+            {effect_html}
+            <div class="temp-overlay">{temp}℃</div>
         </div>
     """, unsafe_allow_html=True)
+
+    # 文字情報の表示 (Streamlitの標準機能を使うので確実)
+    st.subheader(f"{selected_city_jp}の天気：{selected['txt']}")
+    st.write(f"現在の気温は **{temp}℃** です。")
+
 else:
-    st.warning(f"現在、{selected_city_jp}の情報を取得できません。")
+    st.error("お天気データの取得に失敗しました。もう一度都市を選び直してみてください。")
