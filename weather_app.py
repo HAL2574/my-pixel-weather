@@ -17,7 +17,7 @@ def get_image_base64(path):
         return base64.b64encode(buf.getvalue()).decode()
     except: return ""
 
-# --- CSS (積雪アニメーションを追加) ---
+# --- CSS (レイアウト崩れ防止・文字を最前面に) ---
 st.markdown("""
     <style>
     .block-container { padding: 0 !important; max-width: 100% !important; }
@@ -26,27 +26,24 @@ st.markdown("""
     [data-testid="stHeader"] { display: none; }
     
     .main-container { width: 100vw; height: 100vh; background-color: white; overflow: hidden; display: flex; flex-direction: column; }
-    .image-box { position: relative; width: 100%; height: 65vh; overflow: hidden; }
+    .image-box { position: relative; width: 100%; height: 60vh; overflow: hidden; background-color: #eee; }
     .pixel-img { width: 100%; height: 100%; object-fit: cover; }
-    .temp-txt { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-size: 80px; font-weight: bold; text-shadow: 2px 2px 15px rgba(0,0,0,0.6); z-index: 10; }
-    .info-box { height: 35vh; padding: 15px 25px; background: white; }
     
-    /* 降る雪のアニメーション */
-    .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 5; }
-    @keyframes fall { to { transform: translateY(65vh); } }
-
-    /* ★積もる雪のアニメーション★ */
-    .snow-pile {
-        position: absolute; bottom: 0; left: 0; width: 100%;
-        background: white;
-        z-index: 4; /* 画像より前、降る雪より後ろ */
-        animation: pile-up 60s ease-in-out forwards; /* 60秒かけてゆっくり積もる */
-        filter: blur(2px); /* 少しふわっとさせる */
+    /* 気温の文字が絶対に消えないように設定 */
+    .temp-txt { 
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+        color: white; font-size: 75px; font-weight: bold; 
+        text-shadow: 2px 2px 12px rgba(0,0,0,0.7); z-index: 100; 
     }
-    @keyframes pile-up {
-        from { height: 0px; }
-        to { height: 40px; } /* 最大40pxまで積もる */
-    }
+    
+    .info-box { height: 40vh; padding: 20px; background: white; z-index: 10; }
+    
+    .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 50; }
+    .rain { position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 50; }
+    
+    .snow-pile { position: absolute; bottom: 0; left: 0; width: 100%; background: white; z-index: 40; animation: pile-up 60s ease-out forwards; filter: blur(1px); }
+    @keyframes fall { to { transform: translateY(60vh); } }
+    @keyframes pile-up { from { height: 0px; } to { height: 30px; } }
     </style>
     """, unsafe_allow_html=True)
 
@@ -56,18 +53,30 @@ def get_weather(city_name):
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city_name}&appid={API_KEY}&lang=ja&units=metric"
     try:
         res = requests.get(url, timeout=5)
-        return res.json() if res.status_code == 200 else None
-    except: return None
+        if res.status_code == 200:
+            return res.json()
+    except: pass
+    return None
 
+# --- 都市選択トグル (旭川と帯広を追加) ---
 city_map = {
-    "札幌": "Sapporo", "小樽": "Otaru", "東京": "Tokyo", 
-    "ロンドン": "London", "ハワイ": "Honolulu"
+    "札幌": "Sapporo", 
+    "旭川": "Asahikawa",
+    "帯広": "Obihiro",
+    "小樽": "Otaru", 
+    "東京": "Tokyo", 
+    "ロンドン": "London", 
+    "ハワイ": "Honolulu"
 }
 
-selected_city_jp = st.selectbox("都市を選択", options=list(city_map.keys()), index=0)
+# セレクトボックス
+selected_city_jp = st.selectbox("都市を選択してください", options=list(city_map.keys()), index=0)
 city_en = city_map[selected_city_jp]
+
+# データを取得
 data = get_weather(city_en)
 
+# --- 画面描画 ---
 if data:
     weather_main = data['weather'][0]['main']
     temp = round(data['main']['temp'], 1)
@@ -81,21 +90,19 @@ if data:
     selected = themes.get(weather_main, themes["Clouds"])
     img_b64 = get_image_base64(selected["img"])
 
-    # 演出のHTML生成
+    # 演出HTML
     effect_html = ""
     if weather_main == "Snow":
-        # 降る雪
-        for _ in range(25):
+        for _ in range(20):
             left, dur = random.randint(0, 100), random.uniform(3, 7)
             effect_html += f'<div class="snow" style="left:{left}%; animation-duration:{dur}s;"></div>'
-        # 積もる雪（白い土台）
         effect_html += '<div class="snow-pile"></div>'
-    
     elif weather_main == "Rain":
-        for _ in range(40):
-            left, dur = random.randint(0, 100), random.uniform(0.6, 1.2)
-            effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s; position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 5;"></div>'
+        for _ in range(30):
+            left, dur = random.randint(0, 100), random.uniform(0.7, 1.3)
+            effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s;"></div>'
 
+    # メイン表示
     st.markdown(f"""
         <div class="main-container">
             <div class="image-box" style="background-color: {selected['bg']};">
@@ -104,15 +111,11 @@ if data:
                 <div class="temp-txt">{temp}℃</div>
             </div>
             <div class="info-box">
-                <h1 style="margin:0; font-size: 32px; color: #333;">{selected_city_jp}：{selected['txt']}</h1>
-                <p style="color:gray; font-size: 18px; margin-top: 10px;">
-                    現在の気温：{temp}℃
-                </p>
-                <p style="color:#eee; font-size: 12px; margin-top: 20px;">
-                    Snow Pile Effect Enabled ❄️
-                </p>
+                <h2 style="margin:0; color:#333;">{selected_city_jp}の天気</h2>
+                <p style="font-size: 24px; font-weight: bold; margin: 10px 0;">{selected['txt']}</p>
+                <p style="color:gray;">現在の気温：{temp}℃</p>
             </div>
         </div>
     """, unsafe_allow_html=True)
 else:
-    st.error("データの取得に失敗しました。")
+    st.warning(f"現在、{selected_city_jp}の情報を取得できません。")
