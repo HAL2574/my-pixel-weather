@@ -5,7 +5,7 @@ import base64
 from PIL import Image
 import io
 
-# --- 1. ページ設定 ---
+# --- 1. ページ設定 (スマホで見やすく) ---
 st.set_page_config(page_title="Pixel Weather", layout="centered")
 
 # 画像変換関数
@@ -17,7 +17,7 @@ def get_image_base64(path):
         return base64.b64encode(buf.getvalue()).decode()
     except: return ""
 
-# --- 2. 都市選択 (ここを最初に行う) ---
+# --- 2. 都市選択 (操作しやすく上部に配置) ---
 city_map = {
     "札幌": "Sapporo", 
     "旭川": "Asahikawa",
@@ -28,7 +28,6 @@ city_map = {
     "ハワイ": "Honolulu"
 }
 
-# 選択肢を画面に表示
 selected_city_jp = st.selectbox("都市を選択してください", options=list(city_map.keys()), index=0)
 city_en = city_map[selected_city_jp]
 
@@ -43,35 +42,41 @@ try:
 except:
     pass
 
-# --- 4. CSS設定 (画像エリアの高さとアニメーション) ---
+# --- 4. CSS設定 (大画面重視) ---
 st.markdown("""
     <style>
-    /* ヘッダーなどを消す */
+    /* 左右の余白を削って画面幅を広く使う */
+    .block-container { padding: 1rem 0 !important; max-width: 100% !important; }
     header { visibility: hidden; display: none; }
     [data-testid="stHeader"] { display: none; }
     
-    /* 画像エリアのスタイル */
+    /* 画像エリア：画面の高さの70%を使う(大迫力) */
     .image-container {
         position: relative;
-        width: 100%;
-        height: 350px; /* iPhoneで見やすい高さ */
+        width: 100vw;
+        height: 70vh; 
         overflow: hidden;
-        border-radius: 15px;
-        margin-bottom: 20px;
+        background-color: #eee;
     }
     .pixel-img { width: 100%; height: 100%; object-fit: cover; }
     
     /* 気温の文字 */
     .temp-overlay {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        color: white; font-size: 70px; font-weight: bold;
-        text-shadow: 2px 2px 10px rgba(0,0,0,0.8); z-index: 10;
+        color: white; font-size: 80px; font-weight: bold;
+        text-shadow: 3px 3px 15px rgba(0,0,0,0.8); z-index: 10;
     }
     
-    /* アニメーション */
+    /* アニメーション：画面の高さに合わせて落ちる距離を調整 */
     .snow { position: absolute; top: -10px; width: 6px; height: 6px; background: white; border-radius: 50%; animation: fall linear infinite; z-index: 5; }
     .rain { position: absolute; top: -15px; width: 2px; height: 15px; background: #ADD8E6; animation: fall linear infinite; z-index: 5; }
-    @keyframes fall { to { transform: translateY(350px); } }
+    @keyframes fall { to { transform: translateY(70vh); } }
+    
+    /* 下の情報エリア */
+    .info-area {
+        padding: 20px 25px;
+        background: white;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -92,15 +97,15 @@ if data:
     # 雪・雨の演出
     effect_html = ""
     if weather_main == "Snow":
-        for _ in range(20):
+        for _ in range(25):
             left, dur = random.randint(0, 100), random.uniform(3, 7)
             effect_html += f'<div class="snow" style="left:{left}%; animation-duration:{dur}s;"></div>'
     elif weather_main == "Rain":
-        for _ in range(30):
+        for _ in range(40):
             left, dur = random.randint(0, 100), random.uniform(0.7, 1.3)
             effect_html += f'<div class="rain" style="left:{left}%; animation-duration:{dur}s;"></div>'
 
-    # 画像と気温の表示
+    # 画像と気温を表示
     st.markdown(f"""
         <div class="image-container" style="background-color: {selected['bg']};">
             <img src="data:image/png;base64,{img_b64}" class="pixel-img">
@@ -109,9 +114,15 @@ if data:
         </div>
     """, unsafe_allow_html=True)
 
-    # 文字情報の表示 (Streamlitの標準機能を使うので確実)
-    st.subheader(f"{selected_city_jp}の天気：{selected['txt']}")
-    st.write(f"現在の気温は **{temp}℃** です。")
+    # 文字情報は画像の下に配置 (スクロールで見える)
+    st.markdown(f"""
+        <div class="info-area">
+            <h2 style="margin:0; font-size: 30px;">{selected_city_jp}は「{selected['txt']}」</h2>
+            <p style="font-size: 20px; color: gray; margin-top: 10px;">
+                現在の気温：{temp}℃
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
 
 else:
-    st.error("お天気データの取得に失敗しました。もう一度都市を選び直してみてください。")
+    st.error("お天気データの取得に失敗しました。")
